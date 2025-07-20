@@ -79,7 +79,8 @@ tasks:
       S3_BUCKET:
         sh: terraform output -raw s3_bucket_name
     cmds:
-      - aws s3 rb s3://{{.S3_BUCKET}} --force
+      - cmd: aws s3 rb s3://{{.S3_BUCKET}} --force
+        ignore_error: true
       - terraform destroy -var-file=config.tfvars -auto-approve
 
   deploy:
@@ -98,7 +99,7 @@ tasks:
         sh: terraform output -raw region || echo "eu-central-1"
     cmds:
       - echo "Updating Bedrock Lambda function code..."
-      - aws lambda update-function-code --function-name invoke_bedrock_claude3 --zip-file fileb://{{.BEDROCK_ZIP_FILE}} --region {{.REGION}}
+      - aws lambda update-function-code --function-name invoke_bedrock_claude3 --zip-file fileb://{{.BEDROCK_ZIP_FILE}}
       - echo "Bedrock Lambda function updated!"
 
   update-dynamodb-lambda:
@@ -109,7 +110,7 @@ tasks:
         sh: terraform output -raw region || echo "eu-central-1"
     cmds:
       - echo "Updating DynamoDB Lambda function code..."
-      - aws lambda update-function-code --function-name insert_into_dynamodb --zip-file fileb://{{.DYNAMODB_ZIP_FILE}} --region {{.REGION}}
+      - aws lambda update-function-code --function-name insert_into_dynamodb --zip-file fileb://{{.DYNAMODB_ZIP_FILE}}
       - echo "DynamoDB Lambda function updated!"
 
   update-all-lambdas:
@@ -131,6 +132,7 @@ tasks:
       - echo "Uploading JPEG files to S3 bucket {{.S3_BUCKET}}..."
       - aws s3 cp testdata/ s3://{{.S3_BUCKET}}/images/birth_certificates/ --recursive --exclude "*" --include "*.jpeg" --include "*.jpg" --region {{.REGION}}
       - echo "Files uploaded successfully!"
+      - date
       - aws logs tail /aws/lambda/{{.LAMBDA_1}} --follow
       - aws logs tail /aws/lambda/{{.LAMBDA_2}} --follow
 

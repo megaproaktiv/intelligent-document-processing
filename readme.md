@@ -16,7 +16,7 @@ If in doubt: Use AWS accountnumber - Region
 Your AWS region. Most examples from AWS  use us-east-1.
 Update with our region.
 
-## Model ID
+### Model ID
 
 ID a a Bedrock Model, to which you have access.
 Look in the AWS console.
@@ -60,16 +60,19 @@ first lambda, perss ^c  to see the next Lambda log.
 task upload
 ```
 
+### 4 Check Table items
+
 ```bash
 task check-dynamodb
 ```
-### 6 Clean up
+
+### 5 Clean up
 
 ```bash
 task destroy
 ```
 
-### 7 Cleanup Terraform
+### 6 Cleanup Terraform
 
 ```bash
 rm -rf .terraform
