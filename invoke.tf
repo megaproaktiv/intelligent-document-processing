@@ -34,9 +34,15 @@ resource "aws_iam_role_policy" "lambda_specific_permissions" {
         Resource = ["${aws_s3_bucket.idp_bucket.arn}/*"]
       },
       {
-        Effect   = "Allow"
-        Action   = ["bedrock:InvokeModel"]
-        Resource = ["arn:aws:bedrock:eu-central-1::foundation-model/eu.anthropic.claude-3-7-sonnet-20250219-v1:0"]
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream"
+        ]
+        Resource = [
+          "arn:aws:bedrock:${var.region}::foundation-model/${var.model_id}",
+          "arn:aws:bedrock:${var.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${var.model_id}"
+        ]
       },
       {
         Effect   = "Allow"
@@ -55,9 +61,10 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 
 # Lambda function
 resource "aws_lambda_function" "bedrock_claude3_lambda" {
-  function_name    = "invoke_bedrock_claude3"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "lambda.invoke_bedrock_claude3.lambda_handler"
+  function_name = "invoke_bedrock_claude3"
+  role          = aws_iam_role.lambda_role.arn
+  # the handler consists of the name of the python file without extension and the function name separated by a dot
+  handler          = "invoke_bedrock_claude3.lambda_handler"
   runtime          = "python3.12"
   filename         = "dist/lambda_function.zip"
   source_code_hash = filebase64sha256("dist/lambda_function.zip")
@@ -67,7 +74,8 @@ resource "aws_lambda_function" "bedrock_claude3_lambda" {
   environment {
     variables = {
       QUEUE_URL = aws_sqs_queue.extracted_data_queue.url
-      MODEL_ID  = "eu.anthropic.claude-3-7-sonnet-20250219-v1:0"
+      MODEL_ID  = var.model_id
+      REGION    = var.region
     }
   }
 }
@@ -80,6 +88,18 @@ resource "aws_s3_bucket_notification" "bucket_notification" {
     lambda_function_arn = aws_lambda_function.bedrock_claude3_lambda.arn
     events              = ["s3:ObjectCreated:*"]
     filter_suffix       = ".jpeg"
+  }
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.bedrock_claude3_lambda.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_suffix       = ".jpg"
+  }
+
+  lambda_function {
+    lambda_function_arn = aws_lambda_function.bedrock_claude3_lambda.arn
+    events              = ["s3:ObjectCreated:*"]
+    filter_suffix       = ".png"
   }
 
   depends_on = [aws_lambda_permission.allow_bucket]

@@ -1,0 +1,155 @@
+# https://taskfile.dev
+
+version: "3"
+
+vars:
+  BEDROCK_LAMBDA_FILE: lambda/invoke_bedrock_claude3.py
+  BEDROCK_ZIP_FILE: dist/lambda_function.zip
+  DYNAMODB_LAMBDA_FILE: lambda/insert_into_dynamodb.py
+  DYNAMODB_ZIP_FILE: dist/dynamodb_lambda.zip
+
+tasks:
+  default:
+    desc: Display available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  clean:
+    desc: Clean up generated files
+    cmds:
+      - rm -f {{.BEDROCK_ZIP_FILE}} {{.DYNAMODB_ZIP_FILE}}
+      - rm -rf tmp_lambda
+    silent: true
+
+  zip-bedrock-lambda:
+    desc: Create a ZIP file for the Bedrock Lambda function
+    cmds:
+      - echo "Creating Bedrock Lambda deployment package..."
+      - mkdir -p dist
+      - rm -f {{.BEDROCK_ZIP_FILE}}
+      - mkdir -p tmp_lambda
+      - cp {{.BEDROCK_LAMBDA_FILE}} tmp_lambda/
+      - cd tmp_lambda && zip -r ../{{.BEDROCK_ZIP_FILE}} .
+      - rm -rf tmp_lambda
+    sources:
+      - "{{.BEDROCK_LAMBDA_FILE}}"
+    generates:
+      - "{{.BEDROCK_ZIP_FILE}}"
+
+  zip-dynamodb-lambda:
+    desc: Create a ZIP file for the DynamoDB Lambda function
+    cmds:
+      - echo "Creating DynamoDB Lambda deployment package..."
+      - mkdir -p dist
+      - rm -f {{.DYNAMODB_ZIP_FILE}}
+      - mkdir -p tmp_lambda
+      - cp {{.DYNAMODB_LAMBDA_FILE}} tmp_lambda/
+      - cd tmp_lambda && zip -r ../{{.DYNAMODB_ZIP_FILE}} .
+      - rm -rf tmp_lambda
+    sources:
+      - "{{.DYNAMODB_LAMBDA_FILE}}"
+    generates:
+      - "{{.DYNAMODB_ZIP_FILE}}"
+
+  zip-all:
+    desc: Create ZIP files for all Lambda functions
+    deps: [zip-bedrock-lambda, zip-dynamodb-lambda]
+
+  init:
+    desc: Initialize Terraform (config.tfvars will be used in subsequent commands)
+    cmds:
+      - terraform init
+
+  plan:
+    desc: Run Terraform plan with config.tfvars
+    deps: [zip-all]
+    cmds:
+      - terraform plan -var-file=config.tfvars
+
+  apply:
+    desc: Apply Terraform changes with config.tfvars
+    deps: [zip-all]
+    cmds:
+      - terraform apply -var-file=config.tfvars -auto-approve
+
+  destroy:
+    desc: Destroy all Terraform resources with config.tfvars
+    vars:
+      S3_BUCKET:
+        sh: terraform output -raw s3_bucket_name
+    cmds:
+      - aws s3 rb s3://{{.S3_BUCKET}} --force
+      - terraform destroy -var-file=config.tfvars -auto-approve
+
+  deploy:
+    desc: Deploy all Lambda functions and infrastructure with config.tfvars
+    deps: [zip-all]
+    cmds:
+      - echo "Deploying infrastructure..."
+      - terraform apply -var-file=config.tfvars -auto-approve
+      - echo "Deployment complete!"
+
+  update-bedrock-lambda:
+    desc: Update only the Bedrock Lambda function code
+    deps: [zip-bedrock-lambda]
+    vars:
+      REGION:
+        sh: terraform output -raw region || echo "eu-central-1"
+    cmds:
+      - echo "Updating Bedrock Lambda function code..."
+      - aws lambda update-function-code --function-name invoke_bedrock_claude3 --zip-file fileb://{{.BEDROCK_ZIP_FILE}} --region {{.REGION}}
+      - echo "Bedrock Lambda function updated!"
+
+  update-dynamodb-lambda:
+    desc: Update only the DynamoDB Lambda function code
+    deps: [zip-dynamodb-lambda]
+    vars:
+      REGION:
+        sh: terraform output -raw region || echo "eu-central-1"
+    cmds:
+      - echo "Updating DynamoDB Lambda function code..."
+      - aws lambda update-function-code --function-name insert_into_dynamodb --zip-file fileb://{{.DYNAMODB_ZIP_FILE}} --region {{.REGION}}
+      - echo "DynamoDB Lambda function updated!"
+
+  update-all-lambdas:
+    desc: Update all Lambda function code
+    deps: [update-bedrock-lambda, update-dynamodb-lambda]
+
+  upload:
+    desc: Upload JPEG files from testdata directory to the S3 bucket's birth_certificates folder
+    vars:
+      REGION:
+        sh: terraform output -raw region || echo "eu-central-1"
+      S3_BUCKET:
+        sh: terraform output -raw s3_bucket_name
+      LAMBDA_1:
+        sh: terraform output -raw lambda_function_name
+      LAMBDA_2:
+        sh: terraform output -raw lambda2_function_name
+    cmds:
+      - echo "Uploading JPEG files to S3 bucket {{.S3_BUCKET}}..."
+      - aws s3 cp testdata/ s3://{{.S3_BUCKET}}/images/birth_certificates/ --recursive --exclude "*" --include "*.jpeg" --include "*.jpg" --region {{.REGION}}
+      - echo "Files uploaded successfully!"
+      - aws logs tail /aws/lambda/{{.LAMBDA_1}} --follow
+      - aws logs tail /aws/lambda/{{.LAMBDA_2}} --follow
+
+  check-bucket:
+    desc: Check the contents of the S3 bucket
+    vars:
+      S3_BUCKET:
+        sh: terraform output -raw s3_bucket_name
+    cmds:
+      - echo "Checking contents of S3 bucket {{.S3_BUCKET}}..."
+      - aws s3 ls s3://{{.S3_BUCKET}}/images/birth_certificates/ --region {{.REGION}}
+
+  check-dynamodb:
+    desc: Show all entries in the DynamoDB table
+    vars:
+      REGION:
+        sh: terraform output -raw region || echo "eu-central-1"
+      DYNAMODB_TABLE:
+        sh: terraform output -raw dynamodb_table_name
+    cmds:
+      - echo "Fetching all entries from DynamoDB table {{.DYNAMODB_TABLE}}..."
+      - aws dynamodb scan --table-name {{.DYNAMODB_TABLE}} --region {{.REGION}} --output json

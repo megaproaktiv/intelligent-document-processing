@@ -1,7 +1,7 @@
 # IAM role for the DynamoDB insertion Lambda function
 resource "aws_iam_role" "dynamodb_insert_lambda_role" {
   name = "dynamodb-insert-lambda-role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -20,7 +20,7 @@ resource "aws_iam_role" "dynamodb_insert_lambda_role" {
 resource "aws_iam_role_policy" "dynamodb_insert_lambda_policy" {
   name = "dynamodb-insert-lambda-policy"
   role = aws_iam_role.dynamodb_insert_lambda_role.id
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -52,15 +52,16 @@ resource "aws_iam_role_policy_attachment" "dynamodb_insert_lambda_basic_executio
 
 # Lambda function for inserting data into DynamoDB
 resource "aws_lambda_function" "dynamodb_insert_lambda" {
-  function_name    = "insert_into_dynamodb"
-  role             = aws_iam_role.dynamodb_insert_lambda_role.arn
-  handler          = "lambda.insert_into_dynamodb.lambda_handler"
+  function_name = "insert_into_dynamodb"
+  role          = aws_iam_role.dynamodb_insert_lambda_role.arn
+  # the handler consists of the name of the python file without extension and the function name separated by a dot
+  handler          = "insert_into_dynamodb.lambda_handler"
   runtime          = "python3.12"
   filename         = "dist/dynamodb_lambda.zip"
   source_code_hash = filebase64sha256("dist/dynamodb_lambda.zip")
   memory_size      = 128
   timeout          = 30
-  
+
   depends_on = [
     aws_dynamodb_table.birth_certificates
   ]
