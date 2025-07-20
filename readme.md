@@ -1,22 +1,22 @@
 # Automated intelligent document processing
 
-## Setup
+# Setup
 
 
 
-### Suffix
+## Suffix
 The suffix is needed because s3 bucket names must be unique.
 You make it unique by adding the suffix. That can be any string which
 consists more than 3 characters.
 
 If in doubt: Use AWS accountnumber - Region
 
-### Region
+## Region
 
 Your AWS region. Most examples from AWS  use us-east-1.
 Update with our region.
 
-### Model ID
+## Model ID
 
 ID a a Bedrock Model, to which you have access.
 Look in the AWS console.
@@ -50,6 +50,12 @@ task check-dynamodb
 
 ### 3 Test
 
+- When the Lambda logs are displayed,
+hit enter a few times to seperate old entries.
+
+- After the two images are processed from the
+first lambda, perss ^c  to see the next Lambda log.
+
 ```bash
 task upload
 ```
@@ -61,4 +67,13 @@ task check-dynamodb
 
 ```bash
 task destroy
+```
+
+### 7 Cleanup Terraform
+
+```bash
+rm -rf .terraform
+rm  .terraform.lock.hcl
+rm terraform.tfstate
+rm terraform.tfstate.backup
 ```
