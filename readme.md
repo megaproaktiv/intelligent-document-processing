@@ -2,9 +2,7 @@
 
 ## Setup
 
-```bash
-vi config.tfvars
-```
+
 
 ### Suffix
 The suffix is needed because s3 bucket names must be unique.
@@ -26,6 +24,12 @@ Look in the AWS console.
 
 
 ## Lifecycle
+
+### 0 Configuration
+
+```bash
+vi config.tfvars
+```
 
 ### 1 Create infrastructure
 
